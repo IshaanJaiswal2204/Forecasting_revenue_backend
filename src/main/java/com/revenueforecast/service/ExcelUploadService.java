@@ -4,6 +4,8 @@ import com.revenueforecast.model.*;
 import com.revenueforecast.repository.*;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +19,8 @@ import java.util.List;
 @Service
 public class ExcelUploadService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ExcelUploadService.class);
+
     @Autowired private BaselineRepository baselineRepo;
     @Autowired private MostLikelyRepository mostLikelyRepo;
     @Autowired private BFDRepository bfdRepo;
@@ -26,11 +30,12 @@ public class ExcelUploadService {
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
     public void uploadBaseline(MultipartFile file) throws Exception {
+        logger.info("Uploading Baseline data from file: {}", file.getOriginalFilename());
         List<Baseline> records = new ArrayList<>();
         try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(0);
             for (Row row : sheet) {
-                if (row.getRowNum() == 0) continue; // skip header
+                if (row.getRowNum() == 0) continue;
                 Baseline b = new Baseline();
                 b.setAssociateId(getInteger(row, 0));
                 b.setAssociateName(getCell(row, 1));
@@ -52,10 +57,11 @@ public class ExcelUploadService {
             }
         }
         baselineRepo.saveAll(records);
+        logger.info("Saved {} Baseline records", records.size());
     }
 
-    // Similar methods: uploadMostLikely(), uploadBFD(), uploadCognizantHoliday(), uploadAssociateHoliday()
     public void uploadMostLikely(MultipartFile file) throws Exception {
+        logger.info("Uploading MostLikely data from file: {}", file.getOriginalFilename());
         List<MostLikely> records = new ArrayList<>();
         try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -81,16 +87,18 @@ public class ExcelUploadService {
             }
         }
         mostLikelyRepo.saveAll(records);
+        logger.info("Saved {} MostLikely records", records.size());
     }
-    
+
     public void uploadBFD(MultipartFile file) throws Exception {
+        logger.info("Uploading BFD data from file: {}", file.getOriginalFilename());
         List<BFD> records = new ArrayList<>();
         try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(0);
             for (Row row : sheet) {
                 if (row.getRowNum() == 0) continue;
                 BFD bfd = new BFD();
-                bfd.setProjectId(getInteger(row, 0)); // instead of getCell(row, 0)
+                bfd.setProjectId(getInteger(row, 0));
                 bfd.setProjectDescription(getCell(row, 1));
                 bfd.setJan(getDouble(row, 2));
                 bfd.setFeb(getDouble(row, 3));
@@ -108,9 +116,11 @@ public class ExcelUploadService {
             }
         }
         bfdRepo.saveAll(records);
+        logger.info("Saved {} BFD records", records.size());
     }
-    
+
     public void uploadCognizantHoliday(MultipartFile file) throws Exception {
+        logger.info("Uploading CognizantHoliday data from file: {}", file.getOriginalFilename());
         List<CognizantHoliday> records = new ArrayList<>();
         try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -135,17 +145,18 @@ public class ExcelUploadService {
             }
         }
         cognizantHolidayRepo.saveAll(records);
+        logger.info("Saved {} CognizantHoliday records", records.size());
     }
 
-    
     public void uploadAssociateHoliday(MultipartFile file) throws Exception {
+        logger.info("Uploading AssociateHoliday data from file: {}", file.getOriginalFilename());
         List<AssociateHoliday> records = new ArrayList<>();
         try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(0);
             for (Row row : sheet) {
                 if (row.getRowNum() == 0) continue;
                 AssociateHoliday ah = new AssociateHoliday();
-                ah.setAssociateId(getInteger(row, 0)); // instead of getCell(row, 0)
+                ah.setAssociateId(getInteger(row, 0));
                 ah.setAssociateName(getCell(row, 1));
                 ah.setJan(getInteger(row, 2));
                 ah.setFeb(getInteger(row, 3));
@@ -163,9 +174,9 @@ public class ExcelUploadService {
             }
         }
         associateHolidayRepo.saveAll(records);
+        logger.info("Saved {} AssociateHoliday records", records.size());
     }
 
-    
     private Integer getInteger(Row row, int index) {
         Cell cell = row.getCell(index);
         if (cell == null) return 0;
@@ -175,12 +186,13 @@ public class ExcelUploadService {
             try {
                 return Integer.parseInt(cell.getStringCellValue().trim());
             } catch (NumberFormatException e) {
+                logger.warn("Failed to parse integer from cell at index {}: '{}'", index, cell.getStringCellValue());
                 return 0;
             }
         }
         return 0;
     }
-    
+
     private String getCell(Row row, int index) {
         Cell cell = row.getCell(index);
         return cell != null ? cell.toString().trim() : "";
@@ -188,15 +200,32 @@ public class ExcelUploadService {
 
     private Double getDouble(Row row, int index) {
         Cell cell = row.getCell(index);
-        return (cell != null && cell.getCellType() == CellType.NUMERIC) ? cell.getNumericCellValue() : 0.0;
+        if (cell == null) return 0.0;
+        if (cell.getCellType() == CellType.NUMERIC) {
+            return cell.getNumericCellValue();
+        } else if (cell.getCellType() == CellType.STRING) {
+            try {
+                return Double.parseDouble(cell.getStringCellValue().trim());
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse double from cell at index {}: '{}'", index, cell.getStringCellValue());
+                return 0.0;
+            }
+        }
+        return 0.0;
     }
 
     private LocalDate getDate(Row row, int index) {
         Cell cell = row.getCell(index);
-        if (cell != null && cell.getCellType() == CellType.NUMERIC) {
+        if (cell == null) return null;
+        if (cell.getCellType() == CellType.NUMERIC) {
             return cell.getLocalDateTimeCellValue().toLocalDate();
-        } else if (cell != null && cell.getCellType() == CellType.STRING) {
-            return LocalDate.parse(cell.getStringCellValue(), dateFormatter);
+        } else if (cell.getCellType() == CellType.STRING) {
+            try {
+                return LocalDate.parse(cell.getStringCellValue().trim(), dateFormatter);
+            } catch (Exception e) {
+                logger.warn("Failed to parse date from cell at index {}: '{}'", index, cell.getStringCellValue());
+                return null;
+            }
         }
         return null;
     }
