@@ -5,6 +5,7 @@ import com.revenueforecast.service.BaselineService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,15 +20,27 @@ public class BaselineController {
     @Autowired
     private BaselineService baselineService;
 
+//    @GetMapping("/view")
+//    public ResponseEntity<List<BaselineResponseDTO>> getBaselineByMonth(
+//            @RequestParam int month,
+//            @RequestParam int year) {
+//        logger.info("Received request for baseline view: month={}, year={}", month, year);
+//
+//        List<BaselineResponseDTO> response = baselineService.getBaselineByMonth(month, year);
+//        logger.info("Returning {} baseline records", response.size());
+//
+//        return ResponseEntity.ok(response);
+//    }
+    
     @GetMapping("/view")
-    public ResponseEntity<List<BaselineResponseDTO>> getBaselineByMonth(
+    public ResponseEntity<Page<BaselineResponseDTO>> getBaselineByMonth(
             @RequestParam int month,
-            @RequestParam int year) {
-        logger.info("Received request for baseline view: month={}, year={}", month, year);
+            @RequestParam int year,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
-        List<BaselineResponseDTO> response = baselineService.getBaselineByMonth(month, year);
-        logger.info("Returning {} baseline records", response.size());
-
+        Page<BaselineResponseDTO> response = baselineService.getBaselineByMonth(month, year, page, size);
         return ResponseEntity.ok(response);
     }
+
 }

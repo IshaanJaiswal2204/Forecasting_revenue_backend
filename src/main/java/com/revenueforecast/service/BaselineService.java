@@ -10,6 +10,7 @@ import com.revenueforecast.repository.CognizantHolidayRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
@@ -30,16 +31,17 @@ public class BaselineService {
     @Autowired
     private CognizantHolidayRepository cognizantHolidayRepository;
 
-    public List<BaselineResponseDTO> getBaselineByMonth(int month, int year) {
-        logger.info("Calculating baseline for year: {}, month: {}", year, month);
+    public Page<BaselineResponseDTO> getBaselineByMonth(int month, int year, int page, int size) {
+        logger.info("Calculating baseline for year: {}, month: {}, page: {}, size: {}", year, month, page, size);
 
-        List<Baseline> allRecords = baselineRepository.findAll();
-        logger.debug("Fetched {} baseline records", allRecords.size());
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Baseline> baselinePage = baselineRepository.findAll(pageable);
+        logger.debug("Fetched {} baseline records from page {}", baselinePage.getNumberOfElements(), page);
 
         LocalDate firstDay = LocalDate.of(year, month, 1);
         LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
 
-        return allRecords.stream()
+        List<BaselineResponseDTO> dtoList = baselinePage.stream()
             .filter(b -> {
                 LocalDate start = b.getCurrentStartDate();
                 LocalDate end = b.getCurrentEndDate();
@@ -67,7 +69,6 @@ public class BaselineService {
 
                 double hours = b.getCountry().equalsIgnoreCase("India") ? 9.0 : 8.0;
                 dto.setHours(hours);
-                logger.debug("Assigned hours for {}: {}", b.getCountry(), hours);
 
                 // Current month
                 int workingDays = getWorkingDaysExcludingWeekends(year, month);
@@ -77,8 +78,6 @@ public class BaselineService {
                 double monthHours = finalWorkingDays * hours;
                 double rate = b.getBillRate() != null ? b.getBillRate() : 0;
                 double monthRevenue = rate * monthHours;
-
-                logger.debug("MonthHours: {}, MonthRevenue: {}", monthHours, monthRevenue);
 
                 // Previous month
                 YearMonth current = YearMonth.of(year, month);
@@ -92,10 +91,7 @@ public class BaselineService {
                 double previousMonthHours = finalPrevWorkingDays * hours;
                 double previousRevenue = rate * previousMonthHours;
 
-                logger.debug("PreviousMonthHours: {}, PreviousRevenue: {}", previousMonthHours, previousRevenue);
-
                 double variance = monthRevenue - previousRevenue;
-                logger.info("Variance for associate {}: {}", b.getAssociateId(), variance);
 
                 dto.setMonthHours(monthHours);
                 dto.setMonthRevenue(monthRevenue);
@@ -105,6 +101,8 @@ public class BaselineService {
                 return dto;
             })
             .collect(Collectors.toList());
+
+        return new PageImpl<>(dtoList, pageable, baselinePage.getTotalElements());
     }
 
     private int getWorkingDaysExcludingWeekends(int year, int month) {
@@ -117,26 +115,19 @@ public class BaselineService {
                 workingDays++;
             }
         }
-        logger.debug("Working days (excluding weekends) for {}/{}: {}", month, year, workingDays);
         return workingDays;
     }
 
     private int getAssociateHolidayDays(Integer associateId, int month) {
         return associateHolidayRepository.findById(associateId)
             .map(h -> getMonthValueFromAssociate(h, month))
-            .orElseGet(() -> {
-                logger.warn("No associate holiday found for ID: {}", associateId);
-                return 0;
-            });
+            .orElse(0);
     }
 
     private int getCognizantHolidayDays(String location, int month) {
         return cognizantHolidayRepository.findById(location)
             .map(h -> getMonthValueFromCognizant(h, month))
-            .orElseGet(() -> {
-                logger.warn("No Cognizant holiday found for location: {}", location);
-                return 0;
-            });
+            .orElse(0);
     }
 
     private int getMonthValueFromAssociate(AssociateHoliday holiday, int month) {
