@@ -32,6 +32,7 @@ public class BaselineService {
     private CognizantHolidayRepository cognizantHolidayRepository;
 
     public Page<BaselineResponseDTO> getBaselineByMonth(int month, int year, int page, int size) {
+        long startTime = System.currentTimeMillis();
         logger.info("Calculating baseline for year: {}, month: {}, page: {}, size: {}", year, month, page, size);
 
         Pageable pageable = PageRequest.of(page, size);
@@ -69,6 +70,7 @@ public class BaselineService {
 
                 double hours = b.getCountry().equalsIgnoreCase("India") ? 9.0 : 8.0;
                 dto.setHours(hours);
+                logger.debug("Assigned hours for {}: {}", b.getCountry(), hours);
 
                 // Current month
                 int workingDays = getWorkingDaysExcludingWeekends(year, month);
@@ -102,6 +104,9 @@ public class BaselineService {
             })
             .collect(Collectors.toList());
 
+        long endTime = System.currentTimeMillis();
+        logger.info("Baseline calculation completed in {} ms", endTime - startTime);
+
         return new PageImpl<>(dtoList, pageable, baselinePage.getTotalElements());
     }
 
@@ -115,19 +120,26 @@ public class BaselineService {
                 workingDays++;
             }
         }
+        logger.debug("Working days (excluding weekends) for {}/{}: {}", month, year, workingDays);
         return workingDays;
     }
 
     private int getAssociateHolidayDays(Integer associateId, int month) {
         return associateHolidayRepository.findById(associateId)
             .map(h -> getMonthValueFromAssociate(h, month))
-            .orElse(0);
+            .orElseGet(() -> {
+                logger.warn("No associate holiday found for ID: {}", associateId);
+                return 0;
+            });
     }
 
     private int getCognizantHolidayDays(String location, int month) {
         return cognizantHolidayRepository.findById(location)
             .map(h -> getMonthValueFromCognizant(h, month))
-            .orElse(0);
+            .orElseGet(() -> {
+                logger.warn("No Cognizant holiday found for location: {}", location);
+                return 0;
+            });
     }
 
     private int getMonthValueFromAssociate(AssociateHoliday holiday, int month) {

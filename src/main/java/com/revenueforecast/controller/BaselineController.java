@@ -9,8 +9,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/baseline")
 public class BaselineController {
@@ -20,18 +18,6 @@ public class BaselineController {
     @Autowired
     private BaselineService baselineService;
 
-//    @GetMapping("/view")
-//    public ResponseEntity<List<BaselineResponseDTO>> getBaselineByMonth(
-//            @RequestParam int month,
-//            @RequestParam int year) {
-//        logger.info("Received request for baseline view: month={}, year={}", month, year);
-//
-//        List<BaselineResponseDTO> response = baselineService.getBaselineByMonth(month, year);
-//        logger.info("Returning {} baseline records", response.size());
-//
-//        return ResponseEntity.ok(response);
-//    }
-    
     @GetMapping("/view")
     public ResponseEntity<Page<BaselineResponseDTO>> getBaselineByMonth(
             @RequestParam int month,
@@ -39,8 +25,12 @@ public class BaselineController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
+        logger.info("Received request for baseline view: month={}, year={}, page={}, size={}", month, year, page, size);
+
         Page<BaselineResponseDTO> response = baselineService.getBaselineByMonth(month, year, page, size);
+
+        logger.info("Returning {} baseline records on page {}", response.getNumberOfElements(), page);
+
         return ResponseEntity.ok(response);
     }
-
 }
