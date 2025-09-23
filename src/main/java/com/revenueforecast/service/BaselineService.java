@@ -22,27 +22,21 @@ public class BaselineService {
 
     private static final Logger logger = LoggerFactory.getLogger(BaselineService.class);
 
-    @Autowired
-    private BaselineRepository baselineRepository;
-
-    @Autowired
-    private AssociateHolidayRepository associateHolidayRepository;
-
-    @Autowired
-    private CognizantHolidayRepository cognizantHolidayRepository;
+    @Autowired private BaselineRepository baselineRepository;
+    @Autowired private AssociateHolidayRepository associateHolidayRepository;
+    @Autowired private CognizantHolidayRepository cognizantHolidayRepository;
 
     public Page<BaselineResponseDTO> getBaselineByMonth(int month, int year, int page, int size) {
         long startTime = System.currentTimeMillis();
         logger.info("Calculating baseline for year: {}, month: {}, page: {}, size: {}", year, month, page, size);
 
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Baseline> baselinePage = baselineRepository.findAll(pageable);
-        logger.debug("Fetched {} baseline records from page {}", baselinePage.getNumberOfElements(), page);
-
         LocalDate firstDay = LocalDate.of(year, month, 1);
         LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
 
-        List<BaselineResponseDTO> dtoList = baselinePage.stream()
+        List<Baseline> allRecords = baselineRepository.findAll();
+        logger.debug("Fetched total {} baseline records", allRecords.size());
+
+        List<BaselineResponseDTO> filteredList = allRecords.stream()
             .filter(b -> {
                 LocalDate start = b.getCurrentStartDate();
                 LocalDate end = b.getCurrentEndDate();
@@ -70,18 +64,15 @@ public class BaselineService {
 
                 double hours = b.getCountry().equalsIgnoreCase("India") ? 9.0 : 8.0;
                 dto.setHours(hours);
-                logger.debug("Assigned hours for {}: {}", b.getCountry(), hours);
 
-                // Current month
                 int workingDays = getWorkingDaysExcludingWeekends(year, month);
                 int associateHolidays = getAssociateHolidayDays(b.getAssociateId(), month);
                 int cognizantHolidays = getCognizantHolidayDays(b.getCity(), month);
-                int finalWorkingDays = workingDays - associateHolidays - cognizantHolidays;
+                int finalWorkingDays = Math.max(0, workingDays - associateHolidays - cognizantHolidays);
                 double monthHours = finalWorkingDays * hours;
                 double rate = b.getBillRate() != null ? b.getBillRate() : 0;
                 double monthRevenue = rate * monthHours;
 
-                // Previous month
                 YearMonth current = YearMonth.of(year, month);
                 YearMonth previous = current.minusMonths(1);
                 int prevYear = previous.getYear();
@@ -89,7 +80,7 @@ public class BaselineService {
                 int prevWorkingDays = getWorkingDaysExcludingWeekends(prevYear, prevMonth);
                 int prevAssociateHolidays = getAssociateHolidayDays(b.getAssociateId(), prevMonth);
                 int prevCognizantHolidays = getCognizantHolidayDays(b.getCity(), prevMonth);
-                int finalPrevWorkingDays = prevWorkingDays - prevAssociateHolidays - prevCognizantHolidays;
+                int finalPrevWorkingDays = Math.max(0, prevWorkingDays - prevAssociateHolidays - prevCognizantHolidays);
                 double previousMonthHours = finalPrevWorkingDays * hours;
                 double previousRevenue = rate * previousMonthHours;
 
@@ -104,10 +95,14 @@ public class BaselineService {
             })
             .collect(Collectors.toList());
 
+        int start = page * size;
+        int end = Math.min(start + size, filteredList.size());
+        List<BaselineResponseDTO> pagedList = filteredList.subList(start, end);
+
         long endTime = System.currentTimeMillis();
         logger.info("Baseline calculation completed in {} ms", endTime - startTime);
 
-        return new PageImpl<>(dtoList, pageable, baselinePage.getTotalElements());
+        return new PageImpl<>(pagedList, PageRequest.of(page, size), filteredList.size());
     }
 
     private int getWorkingDaysExcludingWeekends(int year, int month) {

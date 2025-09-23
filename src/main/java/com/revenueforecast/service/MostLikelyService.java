@@ -22,26 +22,31 @@ public class MostLikelyService {
 
     private static final Logger logger = LoggerFactory.getLogger(MostLikelyService.class);
 
-    @Autowired private MostLikelyRepository mostLikelyRepo;
-    @Autowired private AssociateHolidayRepository associateHolidayRepo;
-    @Autowired private CognizantHolidayRepository cognizantHolidayRepo;
+    @Autowired
+    private MostLikelyRepository mostLikelyRepository;
+
+    @Autowired
+    private AssociateHolidayRepository associateHolidayRepository;
+
+    @Autowired
+    private CognizantHolidayRepository cognizantHolidayRepository;
 
     public Page<MostLikelyResponseDTO> getMostLikelyByMonth(int month, int year, int page, int size) {
         long startTime = System.currentTimeMillis();
-        logger.info("Calculating MostLikely for year={}, month={}, page={}, size={}", year, month, page, size);
-
-        Pageable pageable = PageRequest.of(page, size);
-        Page<MostLikely> pageData = mostLikelyRepo.findAll(pageable);
-        logger.debug("Fetched {} MostLikely records from page {}", pageData.getNumberOfElements(), page);
+        logger.info("Calculating MostLikely for year: {}, month: {}, page: {}, size: {}", year, month, page, size);
 
         LocalDate firstDay = LocalDate.of(year, month, 1);
         LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
 
-        List<MostLikelyResponseDTO> dtoList = pageData.stream()
+        List<MostLikely> allRecords = mostLikelyRepository.findAll();
+        logger.debug("Fetched total {} MostLikely records", allRecords.size());
+
+        List<MostLikelyResponseDTO> filteredList = allRecords.stream()
             .filter(m -> {
                 LocalDate start = m.getCurrentStartDate();
                 LocalDate end = m.getCurrentEndDate();
-                boolean isActive = start != null && end != null && !(end.isBefore(firstDay) || start.isAfter(lastDay));
+                boolean isActive = (start != null && end != null) &&
+                                   (!start.isAfter(lastDay) && !end.isBefore(firstDay));
                 if (!isActive) {
                     logger.debug("Skipping associate {} due to inactive date range", m.getAssociateId());
                 }
@@ -66,29 +71,22 @@ public class MostLikelyService {
                 double hours = m.getCountry().equalsIgnoreCase("India") ? 9.0 : 8.0;
                 dto.setHours(hours);
 
-                // Active period within the month
-                LocalDate activeStart = m.getCurrentStartDate().isBefore(firstDay) ? firstDay : m.getCurrentStartDate();
-                LocalDate activeEnd = m.getCurrentEndDate().isAfter(lastDay) ? lastDay : m.getCurrentEndDate();
-                int activeDays = getWorkingDaysExcludingWeekends(activeStart, activeEnd);
-
+                int workingDays = getWorkingDaysExcludingWeekends(year, month);
                 int associateHolidays = getAssociateHolidayDays(m.getAssociateId(), month);
                 int cognizantHolidays = getCognizantHolidayDays(m.getCity(), month);
-                int finalWorkingDays = Math.max(0, activeDays - associateHolidays - cognizantHolidays);
+                int finalWorkingDays = workingDays - associateHolidays - cognizantHolidays;
                 double monthHours = finalWorkingDays * hours;
                 double rate = m.getBillRate() != null ? m.getBillRate() : 0;
                 double monthRevenue = rate * monthHours;
 
-                // Previous month
-                YearMonth previous = YearMonth.of(year, month).minusMonths(1);
-                LocalDate prevFirstDay = previous.atDay(1);
-                LocalDate prevLastDay = previous.atEndOfMonth();
-                LocalDate prevActiveStart = m.getCurrentStartDate().isBefore(prevFirstDay) ? prevFirstDay : m.getCurrentStartDate();
-                LocalDate prevActiveEnd = m.getCurrentEndDate().isAfter(prevLastDay) ? prevLastDay : m.getCurrentEndDate();
-                int prevActiveDays = getWorkingDaysExcludingWeekends(prevActiveStart, prevActiveEnd);
-
-                int prevAssociateHolidays = getAssociateHolidayDays(m.getAssociateId(), previous.getMonthValue());
-                int prevCognizantHolidays = getCognizantHolidayDays(m.getCity(), previous.getMonthValue());
-                int finalPrevWorkingDays = Math.max(0, prevActiveDays - prevAssociateHolidays - prevCognizantHolidays);
+                YearMonth current = YearMonth.of(year, month);
+                YearMonth previous = current.minusMonths(1);
+                int prevYear = previous.getYear();
+                int prevMonth = previous.getMonthValue();
+                int prevWorkingDays = getWorkingDaysExcludingWeekends(prevYear, prevMonth);
+                int prevAssociateHolidays = getAssociateHolidayDays(m.getAssociateId(), prevMonth);
+                int prevCognizantHolidays = getCognizantHolidayDays(m.getCity(), prevMonth);
+                int finalPrevWorkingDays = prevWorkingDays - prevAssociateHolidays - prevCognizantHolidays;
                 double previousMonthHours = finalPrevWorkingDays * hours;
                 double previousRevenue = rate * previousMonthHours;
 
@@ -103,24 +101,32 @@ public class MostLikelyService {
             })
             .collect(Collectors.toList());
 
-        logger.info("Completed MostLikely calculation in {} ms", System.currentTimeMillis() - startTime);
-        return new PageImpl<>(dtoList, pageable, pageData.getTotalElements());
+        int start = page * size;
+        int end = Math.min(start + size, filteredList.size());
+        List<MostLikelyResponseDTO> pagedList = filteredList.subList(start, end);
+
+        long endTime = System.currentTimeMillis();
+        logger.info("MostLikely calculation completed in {} ms", endTime - startTime);
+
+        return new PageImpl<>(pagedList, PageRequest.of(page, size), filteredList.size());
     }
 
-    private int getWorkingDaysExcludingWeekends(LocalDate start, LocalDate end) {
+    private int getWorkingDaysExcludingWeekends(int year, int month) {
+        YearMonth yearMonth = YearMonth.of(year, month);
         int workingDays = 0;
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+        for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
+            LocalDate date = LocalDate.of(year, month, day);
             DayOfWeek dow = date.getDayOfWeek();
             if (dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY) {
                 workingDays++;
             }
         }
-        logger.debug("Working days between {} and {}: {}", start, end, workingDays);
+        logger.debug("Working days (excluding weekends) for {}/{}: {}", month, year, workingDays);
         return workingDays;
     }
 
     private int getAssociateHolidayDays(Integer associateId, int month) {
-        return associateHolidayRepo.findById(associateId)
+        return associateHolidayRepository.findById(associateId)
             .map(h -> getMonthValueFromAssociate(h, month))
             .orElseGet(() -> {
                 logger.warn("No associate holiday found for ID: {}", associateId);
@@ -129,7 +135,7 @@ public class MostLikelyService {
     }
 
     private int getCognizantHolidayDays(String location, int month) {
-        return cognizantHolidayRepo.findById(location)
+        return cognizantHolidayRepository.findById(location)
             .map(h -> getMonthValueFromCognizant(h, month))
             .orElseGet(() -> {
                 logger.warn("No Cognizant holiday found for location: {}", location);
