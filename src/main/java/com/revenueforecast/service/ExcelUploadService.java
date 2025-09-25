@@ -22,7 +22,6 @@ public class ExcelUploadService {
     private static final Logger logger = LoggerFactory.getLogger(ExcelUploadService.class);
 
     @Autowired private BaselineRepository baselineRepo;
-    @Autowired private MostLikelyRepository mostLikelyRepo;
     @Autowired private BFDRepository bfdRepo;
     @Autowired private CognizantHolidayRepository cognizantHolidayRepo;
     @Autowired private AssociateHolidayRepository associateHolidayRepo;
@@ -53,41 +52,23 @@ public class ExcelUploadService {
                 b.setBillRate(getDouble(row, 13));
                 b.setCurrentStartDate(getDate(row, 14));
                 b.setCurrentEndDate(getDate(row, 15));
+
+                // Derive MostLikely dates and confidence
+                LocalDate ced = b.getCurrentEndDate();
+                if (ced != null && !(ced.getMonthValue() == 12 && ced.getDayOfMonth() == 31)) {
+                    b.setMostLikelyStartDate(ced.plusDays(1));
+                    b.setMostLikelyEndDate(LocalDate.of(ced.getYear(), 12, 31));
+                } else {
+                    b.setMostLikelyStartDate(null);
+                    b.setMostLikelyEndDate(null);
+                }
+                b.setConfidentPercentage(95.0);
+
                 records.add(b);
             }
         }
         baselineRepo.saveAll(records);
         logger.info("Saved {} Baseline records", records.size());
-    }
-
-    public void uploadMostLikely(MultipartFile file) throws Exception {
-        logger.info("Uploading MostLikely data from file: {}", file.getOriginalFilename());
-        List<MostLikely> records = new ArrayList<>();
-        try (InputStream is = file.getInputStream(); Workbook workbook = new XSSFWorkbook(is)) {
-            Sheet sheet = workbook.getSheetAt(0);
-            for (Row row : sheet) {
-                if (row.getRowNum() == 0) continue;
-                MostLikely m = new MostLikely();
-                m.setAssociateId(getInteger(row, 0));
-                m.setAssociateName(getCell(row, 1));
-                m.setProjectId(getInteger(row, 2));
-                m.setProjectDescription(getCell(row, 3));
-                m.setProjectBillability(getCell(row, 4));
-                m.setProjectManagerName(getCell(row, 5));
-                m.setGrade(getCell(row, 6));
-                m.setSl(getCell(row, 7));
-                m.setBillabilityStatus(getCell(row, 8));
-                m.setCountry(getCell(row, 9));
-                m.setCity(getCell(row, 10));
-                m.setPercentAllocation(getDouble(row, 11));
-                m.setBillRate(getDouble(row, 12));
-                m.setCurrentStartDate(getDate(row, 13));
-                m.setCurrentEndDate(getDate(row, 14));
-                records.add(m);
-            }
-        }
-        mostLikelyRepo.saveAll(records);
-        logger.info("Saved {} MostLikely records", records.size());
     }
 
     public void uploadBFD(MultipartFile file) throws Exception {

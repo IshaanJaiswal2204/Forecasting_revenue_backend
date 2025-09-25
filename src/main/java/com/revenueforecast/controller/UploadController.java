@@ -20,7 +20,6 @@ public class UploadController {
     @PostMapping
     public ResponseEntity<String> uploadFiles(
             @RequestParam(value = "baseline", required = false) MultipartFile baselineFile,
-            @RequestParam(value = "mostLikely", required = false) MultipartFile mostLikelyFile,
             @RequestParam(value = "bfd", required = false) MultipartFile bfdFile,
             @RequestParam(value = "cognizantHoliday", required = false) MultipartFile cognizantHolidayFile,
             @RequestParam(value = "associateHoliday", required = false) MultipartFile associateHolidayFile) {
@@ -34,12 +33,6 @@ public class UploadController {
                 logger.info("Processing baseline file: {}", baselineFile.getOriginalFilename());
                 excelUploadService.uploadBaseline(baselineFile);
                 response.append("✅ Baseline uploaded successfully.\n");
-            }
-
-            if (mostLikelyFile != null && !mostLikelyFile.isEmpty()) {
-                logger.info("Processing mostLikely file: {}", mostLikelyFile.getOriginalFilename());
-                excelUploadService.uploadMostLikely(mostLikelyFile);
-                response.append("✅ MostLikely uploaded successfully.\n");
             }
 
             if (bfdFile != null && !bfdFile.isEmpty()) {

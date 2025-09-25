@@ -58,7 +58,13 @@
       <groupId>com.mysql</groupId>
       <artifactId>mysql-connector-j</artifactId>
       <scope>runtime</scope>
-    </dependency>
+    </dependency> 
+
+<dependency>
+    <groupId>com.h2database</groupId>
+    <artifactId>h2</artifactId>
+    <scope>runtime</scope>
+</dependency>
 
     <!-- Apache POI for Excel (.xlsx) -->
     <dependency>
@@ -73,8 +79,6 @@
   <artifactId>lombok</artifactId>
   <optional>true</optional>
 </dependency>
-
-    
 	</dependencies>
 
 	<build>

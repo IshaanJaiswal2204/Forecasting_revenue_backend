@@ -62,6 +62,17 @@ public class Baseline {
 
     @Column(name = "`current_end_date`")
     private LocalDate currentEndDate;
+    
+    @Column(name = "mostlikely_start_date")
+    private LocalDate mostLikelyStartDate;
+
+    @Column(name = "mostlikely_end_date")
+    private LocalDate mostLikelyEndDate;
+
+    @Column(name = "mostlikely_confident_percentage")
+    private Double confidentPercentage;
+
+
 
   
 }

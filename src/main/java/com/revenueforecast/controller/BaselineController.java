@@ -1,6 +1,7 @@
 package com.revenueforecast.controller;
 
 import com.revenueforecast.dto.BaselineResponseDTO;
+import com.revenueforecast.dto.MostLikelyResponseDTO;
 import com.revenueforecast.service.BaselineService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,22 @@ public class BaselineController {
         Page<BaselineResponseDTO> response = baselineService.getBaselineByMonth(month, year, page, size);
 
         logger.info("Returning {} baseline records on page {}", response.getNumberOfElements(), page);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/mostlikely")
+    public ResponseEntity<Page<MostLikelyResponseDTO>> getMostLikelyByMonth(
+            @RequestParam int month,
+            @RequestParam int year,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        logger.info("Received request for mostlikely view: month={}, year={}, page={}, size={}", month, year, page, size);
+
+        Page<MostLikelyResponseDTO> response = baselineService.getMostLikelyByMonth(month, year, page, size);
+
+        logger.info("Returning {} mostlikely records on page {}", response.getNumberOfElements(), page);
 
         return ResponseEntity.ok(response);
     }
