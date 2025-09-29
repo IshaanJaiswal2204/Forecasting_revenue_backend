@@ -28,18 +28,17 @@ public class BaselineService {
     @Autowired private CognizantHolidayRepository cognizantHolidayRepository;
 
     public Page<BaselineResponseDTO> getBaselineByMonth(int month, int year, int page, int size) {
+        long startTime = System.currentTimeMillis();
+        logger.info("Calculating baseline for year={}, month={}, page={}, size={}", year, month, page, size);
+
         LocalDate firstDay = LocalDate.of(year, month, 1);
         LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
+        Pageable pageable = PageRequest.of(page, size);
 
-        List<Baseline> allRecords = baselineRepository.findAll();
+        Page<Baseline> pageData = baselineRepository
+            .findByCurrentStartDateLessThanEqualAndCurrentEndDateGreaterThanEqual(lastDay, firstDay, pageable);
 
-        List<BaselineResponseDTO> filteredList = allRecords.stream()
-            .filter(b -> {
-                LocalDate start = b.getCurrentStartDate();
-                LocalDate end = b.getCurrentEndDate();
-                return (start != null && end != null) &&
-                       (!start.isAfter(lastDay) && !end.isBefore(firstDay));
-            })
+        List<BaselineResponseDTO> dtoList = pageData.getContent().stream()
             .map(b -> {
                 BaselineResponseDTO dto = new BaselineResponseDTO();
                 dto.setAssociateId(b.getAssociateId());
@@ -58,8 +57,9 @@ public class BaselineService {
 
                 int workingDays = getWorkingDaysExcludingWeekends(year, month);
                 int associateHolidays = getAssociateHolidayDays(b.getAssociateId(), month);
-                int cognizantHolidays = getCognizantHolidayDays(b.getCity(), month);
+                int cognizantHolidays = getCognizantHolidayDays(b.getCity(), year, month);
                 int finalWorkingDays = Math.max(0, workingDays - associateHolidays - cognizantHolidays);
+
                 double monthHours = finalWorkingDays * hours;
                 double rate = b.getBillRate() != null ? b.getBillRate() : 0;
                 double monthRevenue = rate * monthHours;
@@ -67,7 +67,7 @@ public class BaselineService {
                 YearMonth previous = YearMonth.of(year, month).minusMonths(1);
                 int prevWorkingDays = getWorkingDaysExcludingWeekends(previous.getYear(), previous.getMonthValue());
                 int prevAssociateHolidays = getAssociateHolidayDays(b.getAssociateId(), previous.getMonthValue());
-                int prevCognizantHolidays = getCognizantHolidayDays(b.getCity(), previous.getMonthValue());
+                int prevCognizantHolidays = getCognizantHolidayDays(b.getCity(), previous.getYear(), previous.getMonthValue());
                 int finalPrevWorkingDays = Math.max(0, prevWorkingDays - prevAssociateHolidays - prevCognizantHolidays);
                 double previousMonthHours = finalPrevWorkingDays * hours;
                 double previousRevenue = rate * previousMonthHours;
@@ -81,21 +81,24 @@ public class BaselineService {
             })
             .collect(Collectors.toList());
 
-        int start = page * size;
-        int end = Math.min(start + size, filteredList.size());
-        return new PageImpl<>(filteredList.subList(start, end), PageRequest.of(page, size), filteredList.size());
+        long endTime = System.currentTimeMillis();
+        logger.info("Baseline calculation completed in {} ms", endTime - startTime);
+
+        return new PageImpl<>(dtoList, pageable, pageData.getTotalElements());
     }
 
     public Page<MostLikelyResponseDTO> getMostLikelyByMonth(int month, int year, int page, int size) {
+        long startTime = System.currentTimeMillis();
+        logger.info("Calculating MostLikely baseline for year={}, month={}, page={}, size={}", year, month, page, size);
+
         LocalDate firstDay = LocalDate.of(year, month, 1);
         LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
+        Pageable pageable = PageRequest.of(page, size);
 
-        List<Baseline> allRecords = baselineRepository.findAll();
+        Page<Baseline> pageData = baselineRepository
+            .findByMostLikelyStartDateLessThanEqualAndMostLikelyEndDateGreaterThanEqual(lastDay, firstDay, pageable);
 
-        List<MostLikelyResponseDTO> filteredList = allRecords.stream()
-            .filter(b -> b.getMostLikelyStartDate() != null && b.getMostLikelyEndDate() != null &&
-                         !b.getMostLikelyStartDate().isAfter(lastDay) &&
-                         !b.getMostLikelyEndDate().isBefore(firstDay))
+        List<MostLikelyResponseDTO> dtoList = pageData.getContent().stream()
             .map(b -> {
                 MostLikelyResponseDTO dto = new MostLikelyResponseDTO();
                 dto.setAssociateId(b.getAssociateId());
@@ -118,8 +121,10 @@ public class BaselineService {
 
                 int workingDays = getWorkingDaysBetween(activeStart, activeEnd);
                 int associateHolidays = getAssociateHolidayDays(b.getAssociateId(), month);
-                int cognizantHolidays = getCognizantHolidayDays(b.getCity(), month);
+                int cognizantHolidays = getCognizantHolidayDays(b.getCity(), year, month);
+                
                 int finalWorkingDays = Math.max(0, workingDays - associateHolidays - cognizantHolidays);
+
                 double monthHours = finalWorkingDays * hours;
                 double rate = b.getBillRate() != null ? b.getBillRate() : 0;
                 double baseRevenue = rate * monthHours;
@@ -128,7 +133,7 @@ public class BaselineService {
                 YearMonth previous = YearMonth.of(year, month).minusMonths(1);
                 int prevWorkingDays = getWorkingDaysExcludingWeekends(previous.getYear(), previous.getMonthValue());
                 int prevAssociateHolidays = getAssociateHolidayDays(b.getAssociateId(), previous.getMonthValue());
-                int prevCognizantHolidays = getCognizantHolidayDays(b.getCity(), previous.getMonthValue());
+                int prevCognizantHolidays = getCognizantHolidayDays(b.getCity(), previous.getYear(), previous.getMonthValue());
                 int finalPrevWorkingDays = Math.max(0, prevWorkingDays - prevAssociateHolidays - prevCognizantHolidays);
                 double previousMonthHours = finalPrevWorkingDays * hours;
                 double previousRevenue = rate * previousMonthHours;
@@ -142,9 +147,10 @@ public class BaselineService {
             })
             .collect(Collectors.toList());
 
-        int start = page * size;
-        int end = Math.min(start + size, filteredList.size());
-        return new PageImpl<>(filteredList.subList(start, end), PageRequest.of(page, size), filteredList.size());
+        long endTime = System.currentTimeMillis();
+        logger.info("MostLikely calculation completed in {} ms", endTime - startTime);
+
+        return new PageImpl<>(dtoList, pageable, pageData.getTotalElements());
     }
 
     private int getWorkingDaysExcludingWeekends(int year, int month) {
@@ -178,31 +184,16 @@ public class BaselineService {
             .map(h -> getMonthValueFromAssociate(h, month))
             .orElse(0);
     }
-    private int getCognizantHolidayDays(String location, int month) {
-        return cognizantHolidayRepository.findById(location)
-            .map(h -> getMonthValueFromCognizant(h, month))
-            .orElse(0);
+
+    private int getCognizantHolidayDays(String location, int year, int month) {
+        YearMonth yearMonth = YearMonth.of(year, month);
+        LocalDate start = yearMonth.atDay(1);
+        LocalDate end = yearMonth.atEndOfMonth();
+        List<CognizantHoliday> holidays = cognizantHolidayRepository.findByLocationAndDateBetween(location, start, end);
+        return holidays.size();
     }
 
     private int getMonthValueFromAssociate(AssociateHoliday holiday, int month) {
-        return switch (month) {
-            case 1 -> holiday.getJan();
-            case 2 -> holiday.getFeb();
-            case 3 -> holiday.getMar();
-            case 4 -> holiday.getApr();
-            case 5 -> holiday.getMay();
-            case 6 -> holiday.getJun();
-            case 7 -> holiday.getJul();
-            case 8 -> holiday.getAug();
-            case 9 -> holiday.getSep();
-            case 10 -> holiday.getOct();
-            case 11 -> holiday.getNov();
-            case 12 -> holiday.getDec();
-            default -> 0;
-        };
-    }
-
-    private int getMonthValueFromCognizant(CognizantHoliday holiday, int month) {
         return switch (month) {
             case 1 -> holiday.getJan();
             case 2 -> holiday.getFeb();

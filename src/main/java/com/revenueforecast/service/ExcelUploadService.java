@@ -107,27 +107,36 @@ public class ExcelUploadService {
             Sheet sheet = workbook.getSheetAt(0);
             for (Row row : sheet) {
                 if (row.getRowNum() == 0) continue;
+
+                LocalDate date = getDate(row, 0);
+                String location = getCell(row, 1);
+
+                if (date == null || location == null || location.isEmpty()) {
+                    logger.warn("Skipping row {} due to missing date or location", row.getRowNum());
+                    continue;
+                }
+
+                logger.info("Parsed row {}: date={}, location={}", row.getRowNum(), date, location);
+
                 CognizantHoliday ch = new CognizantHoliday();
-                ch.setLocation(getCell(row, 0));
-                ch.setJan(getInteger(row, 1));
-                ch.setFeb(getInteger(row, 2));
-                ch.setMar(getInteger(row, 3));
-                ch.setApr(getInteger(row, 4));
-                ch.setMay(getInteger(row, 5));
-                ch.setJun(getInteger(row, 6));
-                ch.setJul(getInteger(row, 7));
-                ch.setAug(getInteger(row, 8));
-                ch.setSep(getInteger(row, 9));
-                ch.setOct(getInteger(row, 10));
-                ch.setNov(getInteger(row, 11));
-                ch.setDec(getInteger(row, 12));
-                ch.setTotal(getInteger(row, 13));
+                ch.setDate(date);
+                ch.setLocation(location);
                 records.add(ch);
             }
+        } catch (Exception e) {
+            logger.error("Error reading Excel file: {}", e.getMessage());
+            throw e;
         }
-        cognizantHolidayRepo.saveAll(records);
-        logger.info("Saved {} CognizantHoliday records", records.size());
+
+        try {
+            cognizantHolidayRepo.saveAll(records);
+            logger.info("Saved {} CognizantHoliday records", records.size());
+        } catch (Exception e) {
+            logger.error("Error saving CognizantHoliday records: {}", e.getMessage());
+            throw e;
+        }
     }
+
 
     public void uploadAssociateHoliday(MultipartFile file) throws Exception {
         logger.info("Uploading AssociateHoliday data from file: {}", file.getOriginalFilename());
@@ -198,16 +207,27 @@ public class ExcelUploadService {
     private LocalDate getDate(Row row, int index) {
         Cell cell = row.getCell(index);
         if (cell == null) return null;
-        if (cell.getCellType() == CellType.NUMERIC) {
-            return cell.getLocalDateTimeCellValue().toLocalDate();
-        } else if (cell.getCellType() == CellType.STRING) {
-            try {
-                return LocalDate.parse(cell.getStringCellValue().trim(), dateFormatter);
-            } catch (Exception e) {
-                logger.warn("Failed to parse date from cell at index {}: '{}'", index, cell.getStringCellValue());
-                return null;
+        try {
+            if (cell.getCellType() == CellType.NUMERIC) {
+                return cell.getLocalDateTimeCellValue().toLocalDate();
+            } else if (cell.getCellType() == CellType.STRING) {
+                String raw = cell.getStringCellValue().trim();
+                DateTimeFormatter[] formats = {
+                    DateTimeFormatter.ofPattern("MM-dd-yyyy"),
+                    DateTimeFormatter.ofPattern("MM/dd/yyyy"),
+                    DateTimeFormatter.ofPattern("dd-MM-yyyy"),
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                };
+                for (DateTimeFormatter fmt : formats) {
+                    try {
+                        return LocalDate.parse(raw, fmt);
+                    } catch (Exception ignored) {}
+                }
             }
+        } catch (Exception e) {
+            logger.warn("Failed to parse date at row {}: '{}'", row.getRowNum(), cell.toString());
         }
         return null;
     }
+
 }

@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -13,45 +15,12 @@ import lombok.NoArgsConstructor;
 public class CognizantHoliday {
 
     @Id
-    @Column(name = "`location`")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;  
+
+    @Column(name = "location", nullable = false)
     private String location;
 
-    @Column(name = "`jan`")
-    private Integer jan;
-
-    @Column(name = "`feb`")
-    private Integer feb;
-
-    @Column(name = "`mar`")
-    private Integer mar;
-
-    @Column(name = "`apr`")
-    private Integer apr;
-
-    @Column(name = "`may`")
-    private Integer may;
-
-    @Column(name = "`jun`")
-    private Integer jun;
-
-    @Column(name = "`jul`")
-    private Integer jul;
-
-    @Column(name = "`aug`")
-    private Integer aug;
-
-    @Column(name = "`sep`")
-    private Integer sep;
-
-    @Column(name = "`oct`")
-    private Integer oct;
-
-    @Column(name = "`nov`")
-    private Integer nov;
-
-    @Column(name = "`dec`")
-    private Integer dec;
-
-    @Column(name = "`total`")
-    private Integer total;
+    @Column(name = "date", nullable = false)
+    private LocalDate date;
 }
