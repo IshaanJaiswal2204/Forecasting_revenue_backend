@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/baseline")
+//@RequestMapping("/baseline")
 public class BaselineController {
 
     private static final Logger logger = LoggerFactory.getLogger(BaselineController.class);
@@ -19,7 +19,7 @@ public class BaselineController {
     @Autowired
     private BaselineService baselineService;
 
-    @GetMapping("/view")
+    @GetMapping("/baseline/view")
     public ResponseEntity<Page<BaselineResponseDTO>> getBaselineByMonth(
             @RequestParam int month,
             @RequestParam int year,
@@ -35,7 +35,7 @@ public class BaselineController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/mostlikely")
+    @GetMapping("/mostlikely/view")
     public ResponseEntity<Page<MostLikelyResponseDTO>> getMostLikelyByMonth(
             @RequestParam int month,
             @RequestParam int year,
