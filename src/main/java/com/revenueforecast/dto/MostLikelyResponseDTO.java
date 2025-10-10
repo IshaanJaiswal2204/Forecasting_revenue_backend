@@ -21,6 +21,11 @@ public class MostLikelyResponseDTO {
     private Double previousRevenue;
     private Double variance;
 
+    // ✅ Newly added fields
+    private Integer year;
+    private Integer month;
+    private LocalDate calculatedOn;
+
     // Getters and Setters
 
     public Integer getAssociateId() {
@@ -149,5 +154,29 @@ public class MostLikelyResponseDTO {
 
     public void setVariance(Double variance) {
         this.variance = variance;
+    }
+
+    public Integer getYear() {
+        return year;
+    }
+
+    public void setYear(Integer year) {
+        this.year = year;
+    }
+
+    public Integer getMonth() {
+        return month;
+    }
+
+    public void setMonth(Integer month) {
+        this.month = month;
+    }
+
+    public LocalDate getCalculatedOn() {
+        return calculatedOn;
+    }
+
+    public void setCalculatedOn(LocalDate calculatedOn) {
+        this.calculatedOn = calculatedOn;
     }
 }

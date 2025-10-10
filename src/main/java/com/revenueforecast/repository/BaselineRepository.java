@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public interface BaselineRepository extends JpaRepository<Baseline, Integer> {
 
@@ -30,4 +31,8 @@ public interface BaselineRepository extends JpaRepository<Baseline, Integer> {
     Page<Baseline> findByMostLikelyStartDateLessThanEqualAndMostLikelyEndDateGreaterThanEqual(
         LocalDate end, LocalDate start, Pageable pageable
     );
+    List<Baseline> findByMostLikelyStartDateLessThanEqualAndMostLikelyEndDateGreaterThanEqual(
+    	    LocalDate end, LocalDate start
+    	);
+
 }
